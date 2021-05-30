@@ -1,12 +1,47 @@
 package main
 
 import (
+	"flag"
+	"log"
 	"net/http"
+	"time"
 
+	"github.com/tylerstillwater/graceful"
 	"gopkg.in/mgo.v2"
 )
 
-func main() {}
+func main() {
+	var (
+		addr = flag.String("addr", ":8080", "Address to Endpoint.")
+		// mongo = flag.String("mongo", "twitter-votes-mongodb", "Address to MongoDB")
+		mongo = flag.String("mongo", "localhost", "Address to MongoDB")
+	)
+	flag.Parse()
+	log.Println("Connect to MongoDB...", *mongo)
+	mongoInfo := &mgo.DialInfo{
+		Addrs:    []string{"localhost:27017"},
+		Timeout:  20 * time.Second,
+		Database: "ballots",
+		Username: "mongo",
+		Password: "mongo",
+		Source:   "ballots",
+	}
+	db, err := mgo.DialWithInfo(mongoInfo)
+	if err != nil {
+		log.Fatalln("Failed to connect to MongoDB.: ", err)
+	}
+	// db, err := mgo.Dial(*mongo)
+	// if err != nil {
+	// 	log.Fatalln("Failed to connect to MongoDB.: ", err)
+	// }
+	defer db.Close()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/polls/", withCORS(withVars(withData(db, withAPIKey(handlePolls)))))
+	log.Println("Start Web Server.: ", *addr)
+	graceful.Run(*addr, 1*time.Second, mux)
+	log.Println("Stop Web Server...")
+}
 
 // check API Key.
 func withAPIKey(fn http.HandlerFunc) http.HandlerFunc {
