@@ -6,34 +6,41 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/joeshaw/envdecode"
 	"github.com/tylerstillwater/graceful"
 	"gopkg.in/mgo.v2"
 )
 
 func main() {
 	var (
-		addr = flag.String("addr", ":8080", "Address to Endpoint.")
-		// mongo = flag.String("mongo", "twitter-votes-mongodb", "Address to MongoDB")
-		mongo = flag.String("mongo", "localhost", "Address to MongoDB")
+		addr  = flag.String("addr", ":8080", "Address to Endpoint.")
+		mongo = flag.String("mongo", "twitter-votes-mongodb", "Address to MongoDB")
 	)
 	flag.Parse()
 	log.Println("Connect to MongoDB...", *mongo)
+	var mongoEnv struct {
+		MongoHost   string `env:"MONGO_HOST,required"`
+		MongoPort   string `env:"MONGO_PORT,required"`
+		MongoDB     string `env:"MONGO_DB,required"`
+		MongoUser   string `env:"MONGO_USER,required"`
+		MongoPass   string `env:"MONGO_PASS,required"`
+		MongoSource string `env:"MONGO_SOURCE,required"`
+	}
+	if err := envdecode.Decode(&mongoEnv); err != nil {
+		log.Fatalln("Failed to decode environment variables: ", err)
+	}
 	mongoInfo := &mgo.DialInfo{
-		Addrs:    []string{"localhost:27017"},
+		Addrs:    []string{mongoEnv.MongoHost + ":" + mongoEnv.MongoPort},
 		Timeout:  20 * time.Second,
-		Database: "ballots",
-		Username: "mongo",
-		Password: "mongo",
-		Source:   "ballots",
+		Database: mongoEnv.MongoDB,
+		Username: mongoEnv.MongoUser,
+		Password: mongoEnv.MongoPass,
+		Source:   mongoEnv.MongoSource,
 	}
 	db, err := mgo.DialWithInfo(mongoInfo)
 	if err != nil {
 		log.Fatalln("Failed to connect to MongoDB.: ", err)
 	}
-	// db, err := mgo.Dial(*mongo)
-	// if err != nil {
-	// 	log.Fatalln("Failed to connect to MongoDB.: ", err)
-	// }
 	defer db.Close()
 
 	mux := http.NewServeMux()
